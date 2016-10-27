@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>SSO by NeverSmileK57CLC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">SSO</h1>
+      <h2 class="project-tagline">Single Sign On with OAuth2</h2>
+      <a href="https://github.com/NeverSmileK57CLC/SSO" class="btn">View on GitHub</a>
+      <a href="https://github.com/NeverSmileK57CLC/SSO/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/NeverSmileK57CLC/SSO/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="single-sign-on-sso-là-gì" class="anchor" href="#single-sign-on-sso-l%C3%A0-g%C3%AC" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Single Sign On (SSO) là gì?</h1>
+
+<blockquote>
+<p>Theo Wikipedia Single Sign On là một thuật ngữ của việc kiểm soát truy cập nhiều hệ thống liên quan. Với việc sử dụng thuật ngữ này cho phép người dùng đăng nhập với một ID và mật khẩu duy nhất để có thể truy cập vào một hệ thống hay nhiều hệ thống kết nối với nhau mà không cần sử dụng nhiều tên đăng nhập và mật khẩu khác nhau của từng hệ thống.</p>
+</blockquote>
+
+<p>Hay nói một cách đơn giản Single Sign On nghĩa là khi người dùng đăng nhập vào một hệ thống, họ sẽ đăng nhập vào tất cả các hệ thống khác liên quan.</p>
+
+<p>Một ví dụ điển hình cho việc ứng dụng thuật ngữ này là Google, Google sử dụng cho những sản phẩm của họ như: Gmail, YouTube, Google Maps... Điều này được thực hiển bởi một "dịch vụ trung tâm" (trong trường hợp Google là <a href="https://accounts.google.com">https://accounts.google.com</a>).</p>
+
+<p>Khi bạn đăng nhập lần đầu tiên, cookie được khởi tạo ở "dịch vụ trung tâm", sau đó khi bạn truy cập vào hệ thống thứ hai thì trình duyệt sẽ chuyển hướng tới trung tâm nhưng bạn đã có cookie khi đăng nhập từ trước nên điều đó có nghĩa là bạn đã đăng nhập thành công vào các hệ thống còn lại.</p>
+
+<p>Ngược lại, Single Sign Off là thuật ngữ mà theo đó khi người dùng đăng xuất khỏi hệ thống sẽ chấm dứt quyền truy cập vào các hệ thống còn lại.</p>
+
+<h3>
+<a id="luồng-chạy-chính-của-hệ-thống-sử-dụng-sso" class="anchor" href="#lu%E1%BB%93ng-ch%E1%BA%A1y-ch%C3%ADnh-c%E1%BB%A7a-h%E1%BB%87-th%E1%BB%91ng-s%E1%BB%AD-d%E1%BB%A5ng-sso" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Luồng chạy chính của hệ thống sử dụng SSO</h3>
+
+<ul>
+<li>Client redirect người dùng tới Provider cho việc xác minh</li>
+<li>Người dùng đăng nhập vào Provider</li>
+<li>Provider redirect người dùng trở lại Client với một <code>token</code> được sinh ra ngẫu nhiên</li>
+<li>Client sử dụng <code>token</code> đó để tạo lời gọi API tới Provider cùng với ID và Secret Key tạo nên <code>Access Token</code>
+</li>
+<li>Những request sau được xác minh thông qua <code>Access Token</code>
+</li>
+<li>Đăng xuất xóa bỏ session ở Client cũng như Provider và database</li>
+</ul>
+
+<h1>
+<a id="cách-implement-sso-trong-ứng-dụng-rails" class="anchor" href="#c%C3%A1ch-implement-sso-trong-%E1%BB%A9ng-d%E1%BB%A5ng-rails" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Cách Implement SSO trong ứng dụng Rails</h1>
+
+<p>Bây giờ tôi sẽ hướng dẫn bạn demo một hệ thống có sử dụng SSO trong rails.</p>
+
+<p>Tôi giả sử bạn đã có một hệ thống gọi là Provider dùng để xử lý đăng nhập và một hệ thống gọi là Client dùng đăng nhập thông qua Provider. Provider đã có các chức năng để đăng nhập, đăng xuất, lưu thông tin người dùng vào database.</p>
+
+<h2>
+<a id="1-về-phía-provider" class="anchor" href="#1-v%E1%BB%81-ph%C3%ADa-provider" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>1. Về phía Provider</h2>
+
+<ul>
+<li>Thêm gem omniauth vào <code>Gemfile</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre><span class="pl-k">gem</span> <span class="pl-s"><span class="pl-pds">"</span>omniauth<span class="pl-pds">"</span></span></pre></div>
+
+<ul>
+<li>Tạo <code>access_grants</code> dùng để lưu <code>token</code> và thông tin về quyền đăng nhập</li>
+</ul>
+
+<pre><code>    $ rails g model AccessGrant code access_token refresh_token access_token_expires_at user:references state:integer
+</code></pre>
+
+<ul>
+<li>Tạo một migration thêm 2 trường <code>provider</code> và <code>uid</code> vào bảng Users</li>
+</ul>
+
+<pre><code>    $ rails g migration add_provider_and_uid_to_users provider uid
+</code></pre>
+
+<ul>
+<li>Trong model <code>AccessGrant</code> ta định nghĩa các hàm như generate_tokens để tạo các token, redirect_uri_for hay authenticate <code>app/model/access_grant.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">class</span> <span class="pl-en">AccessGrant<span class="pl-e"> &lt; ActiveRecord::Base</span></span>
+      <span class="pl-k">def</span> <span class="pl-en">generate_tokens</span>
+        <span class="pl-v">self</span>.code <span class="pl-k">=</span> <span class="pl-c1">SecureRandom</span>.hex <span class="pl-c1">16</span>
+        <span class="pl-v">self</span>.access_token <span class="pl-k">=</span> <span class="pl-c1">SecureRandom</span>.hex <span class="pl-c1">16</span>
+        <span class="pl-v">self</span>.refresh_token <span class="pl-k">=</span> <span class="pl-c1">SecureRandom</span>.hex <span class="pl-c1">16</span>
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">def</span> <span class="pl-en">redirect_uri_for</span> <span class="pl-smi">redirect_uri</span>
+        <span class="pl-k">if</span> redirect_uri <span class="pl-k">=~</span> <span class="pl-sr"><span class="pl-pds">/</span><span class="pl-cce">\?</span><span class="pl-pds">/</span></span>
+          redirect_uri <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>&amp;code=<span class="pl-pse">#{</span><span class="pl-s1">code</span><span class="pl-pse"><span class="pl-s1">}</span></span>&amp;response_type=code&amp;state<span class="pl-pse">#{</span><span class="pl-s1">state</span><span class="pl-pse"><span class="pl-s1">}</span></span><span class="pl-pds">"</span></span>
+        <span class="pl-k">else</span>
+          redirect_uri <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>?code=<span class="pl-pse">#{</span><span class="pl-s1">code</span><span class="pl-pse"><span class="pl-s1">}</span></span>&amp;response_type=code&amp;state=<span class="pl-pse">#{</span><span class="pl-s1">state</span><span class="pl-pse"><span class="pl-s1">}</span></span><span class="pl-pds">"</span></span>
+        <span class="pl-k">end</span>
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">def</span> <span class="pl-en">start_expiry_period!</span>
+        update_attribute <span class="pl-c1">:access_token_expires_at</span>, <span class="pl-c1">Time</span>.now <span class="pl-k">+</span> <span class="pl-c1">Devise</span>.timeout_in
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">class</span> <span class="pl-en"><span class="pl-smi">&lt;&lt; self</span></span>
+        <span class="pl-k">def</span> <span class="pl-en">authenticate</span> <span class="pl-smi">code</span>
+          <span class="pl-c1">AccessGrant</span>.find_by <span class="pl-c1">code:</span> code
+        <span class="pl-k">end</span>
+      <span class="pl-k">end</span>
+    <span class="pl-k">end</span></pre></div>
+
+<ul>
+<li>Tạo auth_controller dùng để tạo <code>access_token</code> và authorize <code>app/controller/auth_controller.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">class</span> <span class="pl-en">AuthController<span class="pl-e"> &lt; ApplicationController</span></span>
+      <span class="pl-k">def</span> <span class="pl-en">authorize</span>
+        <span class="pl-c"># Hàm này sẽ được gọi khi user đăng nhập vào provider</span>
+        create_hash <span class="pl-k">=</span> {
+          <span class="pl-c1">state:</span> params[<span class="pl-c1">:state</span>]
+        }
+        access_grant <span class="pl-k">=</span> current_user.access_grants.create create_hash
+        redirect_to access_grant.redirect_uri_for params[<span class="pl-c1">:redirect_uri</span>]
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">def</span> <span class="pl-en">access_token</span>
+        access_grant <span class="pl-k">=</span> <span class="pl-c1">AccessGrant</span>.authenticate params[<span class="pl-c1">:code</span>]
+        <span class="pl-k">if</span> access_grant.nil?
+          <span class="pl-k">return</span>
+        <span class="pl-k">end</span>
+        access_grant.start_expiry_period!
+        render <span class="pl-c1">:json</span> =&gt; {<span class="pl-c1">:access_token</span> =&gt; access_grant.access_token, <span class="pl-c1">:refresh_token</span> =&gt; access_grant.refresh_token,
+          <span class="pl-c1">:expires_in</span> =&gt; <span class="pl-c1">Devise</span>.timeout_in.to_i}
+      <span class="pl-k">end</span>
+    <span class="pl-k">end</span></pre></div>
+
+<p>Sau đó ta thêm một hàm để lấy thông tin mà provider sẽ trả về cho client ở trong <code>auth_controlller.rb</code></p>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">def</span> <span class="pl-en">user</span>
+      hash <span class="pl-k">=</span> {
+        <span class="pl-c1">provider:</span> <span class="pl-s"><span class="pl-pds">"</span>framgia<span class="pl-pds">"</span></span>,
+        <span class="pl-c1">id:</span> current_user.id.to_s,
+        <span class="pl-c1">info:</span> {
+           <span class="pl-c1">email:</span> current_user.email,
+        },
+        <span class="pl-c1">extra:</span> {
+          <span class="pl-c1">gender:</span> current_user.gender,
+          <span class="pl-c1">position:</span> current_user.position,
+          <span class="pl-c1">university:</span> current_user.university
+        }
+      }
+      render <span class="pl-c1">:json</span> =&gt; hash.to_json
+    <span class="pl-k">end</span></pre></div>
+
+<ul>
+<li>Thêm các route <code>config/routes.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    get <span class="pl-s"><span class="pl-pds">"</span>/auth/framgia/authorize<span class="pl-pds">"</span></span> =&gt; <span class="pl-s"><span class="pl-pds">"</span>auth#authorize<span class="pl-pds">"</span></span>
+    post <span class="pl-s"><span class="pl-pds">"</span>/auth/framgia/access_token<span class="pl-pds">"</span></span> =&gt; <span class="pl-s"><span class="pl-pds">"</span>auth#access_token<span class="pl-pds">"</span></span>
+    get <span class="pl-s"><span class="pl-pds">"</span>/auth/framgia/user<span class="pl-pds">"</span></span> =&gt; <span class="pl-s"><span class="pl-pds">"</span>auth#user<span class="pl-pds">"</span></span>
+    post <span class="pl-s"><span class="pl-pds">"</span>/oauth/token<span class="pl-pds">"</span></span> =&gt; <span class="pl-s"><span class="pl-pds">"</span>auth#access_token<span class="pl-pds">"</span></span></pre></div>
+
+<p>Như thế là xong cho phần Provider, tiếp theo ta sẽ cài đặt cho phần Client để có thể redirect đến Provider đăng nhập là lấy thông tin trả về.</p>
+
+<h2>
+<a id="2-về-phía-client" class="anchor" href="#2-v%E1%BB%81-ph%C3%ADa-client" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>2. Về phía Client</h2>
+
+<ul>
+<li>Tạo bảng <code>Users</code> gồm những thông tin cơ bản</li>
+</ul>
+
+<pre><code>    $ rails g model User uid email status:integer
+</code></pre>
+
+<ul>
+<li>Ta thêm các route để xử lý khi Provider callback khi đăng nhập thành công, failure hay khi logout</li>
+</ul>
+
+<pre lang="Default"><code>    post '/auth/:provider/callback' =&gt; 'user_sessions#create'
+    get '/auth/failure' =&gt; 'user_sessions#failure'
+    delete '/logout', :to =&gt; 'user_sessions#destroy'
+</code></pre>
+
+<ul>
+<li>Tạo thư việc Provider xử lý việc lấy thông tin như thế nào khi Provider trả thông tin về <code>lib/framgia.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">require</span> <span class="pl-s"><span class="pl-pds">'</span>omniauth-oauth2<span class="pl-pds">'</span></span>
+    <span class="pl-k">module</span> <span class="pl-en">OmniAuth</span>
+      <span class="pl-k">module</span> <span class="pl-en">Strategies</span>
+        <span class="pl-k">class</span> <span class="pl-en">Framgia<span class="pl-e"> &lt; OmniAuth::Strategies::OAuth2</span></span>
+          <span class="pl-c"># Link tới Provider</span>
+          <span class="pl-c1">CUSTOM_PROVIDER_URL</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>http://localhost:4000<span class="pl-pds">'</span></span>
+
+          option <span class="pl-c1">:client_options</span>, {
+            <span class="pl-c1">:site</span> =&gt;  <span class="pl-c1">CUSTOM_PROVIDER_URL</span>,
+            <span class="pl-c1">:authorize_url</span> =&gt; <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pse">#{</span><span class="pl-s1"><span class="pl-c1">CUSTOM_PROVIDER_URL</span></span><span class="pl-pse"><span class="pl-s1">}</span></span>/auth/sso/authorize<span class="pl-pds">"</span></span>,
+            <span class="pl-c1">:access_token_url</span> =&gt; <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pse">#{</span><span class="pl-s1"><span class="pl-c1">CUSTOM_PROVIDER_URL</span></span><span class="pl-pse"><span class="pl-s1">}</span></span>/auth/sso/access_token<span class="pl-pds">"</span></span>
+          }
+
+          uid <span class="pl-k">do</span>
+            raw_info[<span class="pl-s"><span class="pl-pds">'</span>id<span class="pl-pds">'</span></span>]
+          <span class="pl-k">end</span>
+
+          info <span class="pl-k">do</span>
+            {
+              <span class="pl-c1">:email</span> =&gt; raw_info[<span class="pl-s"><span class="pl-pds">'</span>info<span class="pl-pds">'</span></span>][<span class="pl-s"><span class="pl-pds">'</span>email<span class="pl-pds">'</span></span>]
+            }
+          <span class="pl-k">end</span>
+
+          extra <span class="pl-k">do</span>
+            {
+              <span class="pl-c1">:first_name</span> =&gt; raw_info[<span class="pl-s"><span class="pl-pds">'</span>extra<span class="pl-pds">'</span></span>][<span class="pl-s"><span class="pl-pds">'</span>first_name<span class="pl-pds">'</span></span>],
+              <span class="pl-c1">:last_name</span>  =&gt; raw_info[<span class="pl-s"><span class="pl-pds">'</span>extra<span class="pl-pds">'</span></span>][<span class="pl-s"><span class="pl-pds">'</span>last_name<span class="pl-pds">'</span></span>]
+            }
+          <span class="pl-k">end</span>
+
+          <span class="pl-k">def</span> <span class="pl-en">raw_info</span>
+            <span class="pl-smi">@raw_info</span> <span class="pl-k">||=</span> access_token.get(<span class="pl-s"><span class="pl-pds">"</span>/auth/framgia/user.json?oauth_token=<span class="pl-pse">#{</span><span class="pl-s1">access_token.token</span><span class="pl-pse"><span class="pl-s1">}</span></span><span class="pl-pds">"</span></span>).parsed
+          <span class="pl-k">end</span>
+        <span class="pl-k">end</span>
+      <span class="pl-k">end</span>
+    <span class="pl-k">end</span></pre></div>
+
+<ul>
+<li>Vì OmniAuth được xây dựng cho việc xác minh multi-provider, nên nó cung cấp một class <code>OmniAuth::Builder</code> cho phép ta dễ dàng lựa chọn. Dưới đây là một ví dụ
+<code>config/initializers/omniauth.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-c1">APP_ID</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>key<span class="pl-pds">'</span></span>
+    <span class="pl-c1">APP_SECRET</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>secret<span class="pl-pds">'</span></span>
+
+    <span class="pl-c1">Rails</span>.application.config.middleware.use <span class="pl-c1">OmniAuth</span>::<span class="pl-c1">Builder</span> <span class="pl-k">do</span>
+      provider <span class="pl-c1">:framgia</span>, <span class="pl-c1">APP_ID</span>, <span class="pl-c1">APP_SECRET</span>
+    <span class="pl-k">end</span></pre></div>
+
+<ul>
+<li>Tiếp theo ta xử lý việc khi người dùng login thành công, thất bại hay logout ở <code>sessions_controller</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">class</span> <span class="pl-en">SessionsController<span class="pl-e"> &lt; ApplicationController</span></span>
+      <span class="pl-k">def</span> <span class="pl-en">create</span>
+        omniauth <span class="pl-k">=</span> env[<span class="pl-s"><span class="pl-pds">'</span>omniauth.auth<span class="pl-pds">'</span></span>]
+        user <span class="pl-k">=</span> <span class="pl-c1">User</span>.find_by_uid(omniauth[<span class="pl-s"><span class="pl-pds">'</span>uid<span class="pl-pds">'</span></span>])
+        <span class="pl-k">if</span> <span class="pl-k">not</span> user
+          <span class="pl-c"># New user registration</span>
+          user <span class="pl-k">=</span> <span class="pl-c1">User</span>.<span class="pl-k">new</span>(<span class="pl-c1">:uid</span> =&gt; omniauth[<span class="pl-s"><span class="pl-pds">'</span>uid<span class="pl-pds">'</span></span>])
+        <span class="pl-k">end</span>
+        user.email <span class="pl-k">=</span> omniauth[<span class="pl-s"><span class="pl-pds">'</span>info<span class="pl-pds">'</span></span>][<span class="pl-s"><span class="pl-pds">'</span>email<span class="pl-pds">'</span></span>]
+        user.save
+        session[<span class="pl-c1">:user_id</span>] <span class="pl-k">=</span> omniauth
+        redirect_to root_path
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">def</span> <span class="pl-en">failure</span>
+        flash[<span class="pl-c1">:notice</span>] <span class="pl-k">=</span> params[<span class="pl-c1">:message</span>]
+      <span class="pl-k">end</span>
+
+      <span class="pl-k">def</span> <span class="pl-en">destroy</span>
+        session[<span class="pl-c1">:user_id</span>] <span class="pl-k">=</span> <span class="pl-c1">nil</span>
+        redirect_to <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pse">#{</span><span class="pl-s1"><span class="pl-c1">CUSTOM_PROVIDER_URL</span></span><span class="pl-pse"><span class="pl-s1">}</span></span>/users/sign_out<span class="pl-pds">"</span></span>
+      <span class="pl-k">end</span>
+    <span class="pl-k">end</span></pre></div>
+
+<ul>
+<li>Một điều cũng không kém phần quan trọng là ta phải import provider vào môi trường <code>config/environment.rb</code>
+</li>
+</ul>
+
+<div class="highlight highlight-source-ruby"><pre>    <span class="pl-k">require</span> <span class="pl-s"><span class="pl-pds">"</span>framgia<span class="pl-pds">"</span></span></pre></div>
+
+<p>Vậy là xong phần cài đặt cho Client, ngoài ra bạn có thể thêm khảo thêm project mẫu
+Provider: <a href="https://github.com/joshsoftware/sso-devise-omniauth-provider">https://github.com/joshsoftware/sso-devise-omniauth-provider</a></p>
+
+<p>Client: <a href="https://github.com/joshsoftware/sso-devise-omniauth-client">https://github.com/joshsoftware/sso-devise-omniauth-client</a></p>
+
+<h1>
+<a id="kết-luận" class="anchor" href="#k%E1%BA%BFt-lu%E1%BA%ADn" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Kết luận</h1>
+
+<p>Single Sign On là một kỹ thuật rất hay, áp dụng khi ta muốn tập trung hóa việc đăng nhập, quản lý các hệ thống lớn hoặc đơn giản là xác minh để lấy API.</p>
+
+<p>Lợi ích của nó thì rất rõ ràng: giảm thiểu rủi ro cho việc truy cập đến trang web của bên thứ ba, giảm thời gian cho người dùng khi phải đăng nhập nhiều lần.</p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/NeverSmileK57CLC/SSO">SSO</a> is maintained by <a href="https://github.com/NeverSmileK57CLC">NeverSmileK57CLC</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
